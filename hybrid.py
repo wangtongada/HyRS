@@ -151,7 +151,7 @@ class hyb(object):
             obj_new = (FP + FN)/self.N +self.alpha*(int_flag *(len(prs_new) + len(nrs_new))+(1-int_flag)*nfeatures)+ self.beta * sum(~covered_new)/self.N
             T = T0**(iter/Niteration)
             alpha = np.exp(float(-obj_new +obj_curr)/T) # minimize
-            if obj_new < obj_opt:
+            if obj_new < self.maps[-1][1]:
                 prs_opt,nrs_opt,obj_opt,pcovered_opt,ncovered_opt,overlap_opt,covered_opt, Yhat_opt = prs_new[:],nrs_new[:],obj_new,pcovered_new[:],ncovered_new[:],overlap_new[:],covered_new[:], Yhat_new[:]
                 perror, nerror, oerror, berror = self.diagnose(pcovered_new,ncovered_new,overlap_new,covered_new,Yhat_new)
                 accuracy_min = float(TP+TN)/self.N
