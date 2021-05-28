@@ -11,4 +11,4 @@ supp is the minimal support, which can be set to 5% or 10%. Nrules is the size o
 
     model = hyb(Xtrain,Ytrain,Ybtrain)
     model.generate_rulespace(supp,4,Nrules, need_negcode = True, method = 'randomforest',criteria = 'precision')
-    maps,error,exp = model.train(500, False)
+    maps,error,exp = model.train(500)
