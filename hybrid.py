@@ -162,9 +162,8 @@ class hyb(object):
             
             if print_message:
                 perror, nerror, oerror, berror = self.diagnose(pcovered_new,ncovered_new,overlap_new,covered_new,Yhat_new)
-                if print_message:
-                    print('\niter = {}, alpha = {}, {}(obj) = {}(error) + {}(nrules) + {}(exp)\n accuracy = {}, explainability = {}, nfeatures = {}\n perror = {}, nerror = {}, oerror = {}, berror = {}\n '.format(iter,round(alpha,2),round(obj_new,3),(FP+FN)/self.N, self.alpha*(len(prs_new) + len(nrs_new)), self.beta*sum(~covered_new)/self.N, (TP+TN+0.0)/self.N,sum(covered_new)/self.N, nfeatures,perror,nerror,oerror,berror ))
-                    print('prs = {}, nrs = {}'.format(prs_new, nrs_new))
+                print('\niter = {}, alpha = {}, {}(obj) = {}(error) + {}(nrules) + {}(exp)\n accuracy = {}, explainability = {}, nfeatures = {}\n perror = {}, nerror = {}, oerror = {}, berror = {}\n '.format(iter,round(alpha,2),round(obj_new,3),(FP+FN)/self.N, self.alpha*(len(prs_new) + len(nrs_new)), self.beta*sum(~covered_new)/self.N, (TP+TN+0.0)/self.N,sum(covered_new)/self.N, nfeatures,perror,nerror,oerror,berror ))
+                print('prs = {}, nrs = {}'.format(prs_new, nrs_new))
             if random() <= alpha:
                 prs_curr,nrs_curr,obj_curr,pcovered_curr,ncovered_curr,overlap_curr,covered_curr, Yhat_curr =  prs_new[:],nrs_new[:],obj_new,pcovered_new[:],ncovered_new[:],overlap_new[:],covered_new[:], Yhat_new[:]
         self.prs_min = prs_opt
