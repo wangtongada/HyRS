@@ -7,7 +7,7 @@ Wang, Tong, and Qihang Lin. "Hybrid Predictive Models: When an Interpretable Mod
 
 ## Requirements
 
-You'll need to install fim package https://borgelt.net/pyfim.html, which is to generate candidate rules. However, if you cannot install it for some reason, you can use the alternative approach of using random forest to generate rules. In that case, just comment out the "from fim import fpgrowth,fim" line in Hybrid.py
+You'll need to install fim package https://borgelt.net/pyfim.html, which is to generate candidate rules. However, if you cannot install it for some reason, you can use the alternative approach of using random forest to generate rules. In that case, just comment out the "from fim import fpgrowth,fim" line in hybrid.py and choose "random forest" when calling function generate_rulespace(), as shown in example.ipynb.
 
 ## How to use the code
 
