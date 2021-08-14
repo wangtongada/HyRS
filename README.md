@@ -16,3 +16,7 @@ The input data Xtrain needs to be binarized into a matrix of 0 and 1, i.e., the 
 supp is the minimal support, which can be set to 5% or 10%. Nrules is the size of the rule space, which can be set to 5000 or 10000
 
 See the example.ipynb file for an example of how to use the model.
+
+## Contact
+
+I don't actively check github. If you have questions, please email me at tong-wang@uiowa.edu
