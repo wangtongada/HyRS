@@ -1,36 +1,31 @@
 import pandas as pd 
-from fim import fpgrowth,fim 
+from fim import fpgrowth,fim # you can comment this out if you do not use fpgrowth to generate rules
 import numpy as np
-import math
 from itertools import chain, combinations
 import itertools
 from numpy.random import random
 from scipy import sparse
 from bisect import bisect_left
 from random import sample
-from scipy.stats.distributions import poisson, gamma, beta, bernoulli, binom
-import time
-import scipy
+from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import binarize
 import operator
 from collections import Counter, defaultdict
 from scipy.sparse import csc_matrix
-from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
+from sklearn.ensemble import RandomForestClassifier
 
 class hyb(object):
-    def __init__(self, binary_data,Y,Yb):
+    def __init__(self, binary_data,Y,Yb, alpha = 1, beta = 0.1):
         self.df = binary_data  
         self.Y = Y
         self.N = float(len(Y))
         self.Yb = Yb
-    
-    def set_parameters(self, alpha = 1, beta = 0.1):
-        # input al and bl are lists
         self.alpha = alpha
-        self.beta = beta       
+        self.beta = beta 
+          
 
-    def generate_rulespace(self,supp,maxlen,N, need_negcode = False,njobs = 5, method = 'fpgrowth',criteria = 'IG',add_rules = []):
-        if method == 'fpgrowth':
+    def generate_rulespace(self,supp,maxlen,N, need_negcode = False,method = 'fpgrowth'):
+        if method == 'fpgrowth': # generate rules with fpgrowth
             if need_negcode:
                 df = 1-self.df 
                 df.columns = [name.strip() + 'neg' for name in self.df.columns]
@@ -44,11 +39,11 @@ class hyb(object):
             prules = [np.sort(x[0]).tolist() for x in prules]
             nrules= fpgrowth([itemMatrix[i] for i in nindex],supp = supp,zmin = 1,zmax = maxlen)
             nrules = [np.sort(x[0]).tolist() for x in nrules]
-        else:
+        else: # if you cannot install the package fim, then use random forest to generate rules
             print('Using random forest to generate rules ...')
             prules = []
             for length in range(2,maxlen+1,1):
-                n_estimators = 250*length# min(5000,int(min(comb(df.shape[1], length, exact=True),10000/maxlen)))
+                n_estimators = 250*length
                 clf = RandomForestClassifier(n_estimators = n_estimators,max_depth = length)
                 clf.fit(self.df,self.Y)
                 for n in range(n_estimators):
@@ -68,11 +63,7 @@ class hyb(object):
         self.prules, self.pRMatrix, self.psupp, self.pprecision, self.perror = self.screen_rules(prules,df,self.Y,N,supp)
         self.nrules, self.nRMatrix, self.nsupp, self.nprecision, self.nerror = self.screen_rules(nrules,df,1-self.Y,N,supp)
 
-        # print '\tTook %0.3fs to generate %d rules' % (self.screen_time, len(self.rules))
-
-    def screen_rules(self,rules,df,y,N,supp,criteria = 'precision',njobs = 5,add_rules = []):
-        # print 'screening rules'
-        start_time = time.time()
+    def screen_rules(self,rules,df,y,N,supp,criteria = 'precision'):
         itemInd = {}
         for i,name in enumerate(df.columns):
             itemInd[name] = int(i)
@@ -91,30 +82,21 @@ class hyb(object):
         Zpos = [Z[i] for i in np.where(y>0)][0]
         TP = np.array(np.sum(Zpos,axis=0).tolist()[0])
         supp_select = np.where(TP>=supp*sum(y)/100)[0]
-        # if len(supp_select)<=N:
-        #     rules = [rules[i] for i in supp_select]
-        #     RMatrix = np.array(Z[:,supp_select])
-        #     rules_len = [len(set([name.split('_')[0] for name in rule])) for rule in rules]
-        #     supp = np.array(np.sum(Z,axis=0).tolist()[0])[supp_select]
-        # else:
         FP = np.array(np.sum(Z,axis = 0))[0] - TP
-        # TN = len(y) - np.sum(self.Y) - FP
-        # FN = np.sum(y) - TP
-        p1 = TP.astype(float)/(TP+FP)
-        # p2 = FN.astype(float)/(FN+TN)
-        # pp = (TP+FP).astype(float)/(TP+FP+TN+FN)
+        precision = TP.astype(float)/(TP+FP)
 
-        supp_select = np.array([i for i in supp_select if p1[i]>np.mean(y)])
-        select = np.argsort(p1[supp_select])[::-1][:N].tolist()
+
+        supp_select = np.array([i for i in supp_select if precision[i]>np.mean(y)])
+        select = np.argsort(precision[supp_select])[::-1][:N].tolist()
         ind = list(supp_select[select])
         rules = [rules[i] for i in ind]
         RMatrix = np.array(Z[:,ind])
         rules_len = [len(set([name.split('_')[0] for name in rule])) for rule in rules]
         supp = np.array(np.sum(Z,axis=0).tolist()[0])[ind]
-        return rules, RMatrix, supp, p1[ind], FP[ind]
+        return rules, RMatrix, supp, precision[ind], FP[ind]
 
 
-    def train(self, Niteration = 5000, print_message=True, interpretability = 'size'):
+    def train(self, Niteration = 5000, print_message=False, interpretability = 'size'):
         self.maps = []
         int_flag = int(interpretability =='size')
         T0 = 0.01
@@ -132,7 +114,6 @@ class hyb(object):
         ncovered_curr = n ^ overlap_curr
         covered_curr = np.logical_xor(p,n)
         Yhat_curr,TP,FP,TN,FN  = self.compute_obj(pcovered_curr,covered_curr)
-        print(Yhat_curr,TP,FP,TN,FN)
         nfeatures = len(np.unique([con.split('_')[0] for i in prs_curr for con in self.prules[i]])) + len(np.unique([con.split('_')[0] for i in nrs_curr for con in self.nrules[i]]))
         obj_curr = ( FN + FP)/self.N +self.alpha*(int_flag *(len(prs_curr) + len(nrs_curr))+(1-int_flag)*nfeatures)+ self.beta * sum(~covered_curr)/self.N
         self.actions = []
@@ -140,11 +121,7 @@ class hyb(object):
             if iter >0.75 * Niteration:
                 prs_curr,nrs_curr,pcovered_curr,ncovered_curr,overlap_curr,covered_curr, Yhat_curr = prs_opt[:],nrs_opt[:],pcovered_opt[:],ncovered_opt[:],overlap_opt[:],covered_opt[:], Yhat_opt[:] 
             prs_new,nrs_new , pcovered_new,ncovered_new,overlap_new,covered_new= self.propose_rs(prs_curr,nrs_curr,pcovered_curr,ncovered_curr,overlap_curr,covered_curr, Yhat_curr, obj_min,print_message)
-            self.covered1 = covered_new[:]
             self.Yhat_curr = Yhat_curr
-            # if sum(covered_new)<len(self.Y):
-            #     # bbmodel.fit(self.df.iloc[~covered_new],self.Y[~covered_new])
-            #     bbmodel.fit(self.df,self.Y)
             Yhat_new,TP,FP,TN,FN = self.compute_obj(pcovered_new,covered_new)
             self.Yhat_new = Yhat_new
             nfeatures = len(np.unique([con.split('_')[0] for i in prs_new for con in self.prules[i]])) + len(np.unique([con.split('_')[0] for i in nrs_new for con in self.nrules[i]]))
@@ -157,18 +134,17 @@ class hyb(object):
                 accuracy_min = float(TP+TN)/self.N
                 explainability_min = sum(covered_new)/self.N
                 covered_min = covered_new
-                print('\n**  max at iter = {} ** \n {}(obj) = {}(error) + {}(nrules) + {}(exp)\n accuracy = {}, explainability = {}, nfeatures = {}\n perror = {}, nerror = {}, oerror = {}, berror = {}\n '.format(iter,round(obj_new,3),(FP+FN)/self.N, self.alpha*(len(prs_new) + len(nrs_new)), self.beta*sum(~covered_new)/self.N, (TP+TN+0.0)/self.N,sum(covered_new)/self.N,nfeatures,perror,nerror,oerror,berror ))
+                print('\n**  max at iter = {} ** \n {}(obj) = {}(error) + {}(intepretability) + {}(exp)\n accuracy = {}, explainability = {}, nfeatures = {}\n perror = {}, nerror = {}, oerror = {}, berror = {}\n '.format(iter,round(obj_new,3),(FP+FN)/self.N, self.alpha*(len(prs_new) + len(nrs_new)), self.beta*sum(~covered_new)/self.N, (TP+TN+0.0)/self.N,sum(covered_new)/self.N,nfeatures,perror,nerror,oerror,berror ))
                 self.maps.append([iter,obj_new,prs_new,nrs_new])
             
             if print_message:
                 perror, nerror, oerror, berror = self.diagnose(pcovered_new,ncovered_new,overlap_new,covered_new,Yhat_new)
-                print('\niter = {}, alpha = {}, {}(obj) = {}(error) + {}(nrules) + {}(exp)\n accuracy = {}, explainability = {}, nfeatures = {}\n perror = {}, nerror = {}, oerror = {}, berror = {}\n '.format(iter,round(alpha,2),round(obj_new,3),(FP+FN)/self.N, self.alpha*(len(prs_new) + len(nrs_new)), self.beta*sum(~covered_new)/self.N, (TP+TN+0.0)/self.N,sum(covered_new)/self.N, nfeatures,perror,nerror,oerror,berror ))
+                print('\niter = {}, alpha = {}, {}(obj) = {}(error) + {}(intepretability) + {}(exp)\n accuracy = {}, explainability = {}, nfeatures = {}\n perror = {}, nerror = {}, oerror = {}, berror = {}\n '.format(iter,round(alpha,2),round(obj_new,3),(FP+FN)/self.N, self.alpha*(len(prs_new) + len(nrs_new)), self.beta*sum(~covered_new)/self.N, (TP+TN+0.0)/self.N,sum(covered_new)/self.N, nfeatures,perror,nerror,oerror,berror ))
                 print('prs = {}, nrs = {}'.format(prs_new, nrs_new))
             if random() <= alpha:
                 prs_curr,nrs_curr,obj_curr,pcovered_curr,ncovered_curr,overlap_curr,covered_curr, Yhat_curr =  prs_new[:],nrs_new[:],obj_new,pcovered_new[:],ncovered_new[:],overlap_new[:],covered_new[:], Yhat_new[:]
-        self.prs_min = prs_opt
-        self.nrs_min = nrs_opt
-        return self.maps,accuracy_min,covered_min
+        self.positive_rule_set = prs_opt
+        self.negative_rule_set = nrs_opt
 
     def diagnose(self, pcovered, ncovered, overlapped, covered, Yhat):
         perror = sum(self.Y[pcovered]!=Yhat[pcovered])
@@ -181,7 +157,7 @@ class hyb(object):
         Yhat = np.zeros(int(self.N))
         Yhat[pcovered] = 1
         Yhat[~covered] = self.Yb[~covered] #self.Y[~covered]#
-        TP,FP,TN,FN = getConfusion(Yhat,self.Y)
+        TN,FP,FN,TP = confusion_matrix(Yhat,self.Y).ravel()
         return  Yhat,TP,FP,TN,FN
 
     def propose_rs(self, prs,nrs,pcovered,ncovered,overlapped, covered,Yhat, vt,print_message = False):
@@ -192,9 +168,6 @@ class hyb(object):
         n = np.sum(self.nRMatrix[:,nrs],axis = 1)
         ex = -1
         if sum(covered) ==self.N: # covering all examples.
-            if print_message:
-                print('===== already covering all examples ===== ')
-            # print('0')
             move = ['cut']
             self.actions.append(0)
             if len(prs)==0:
@@ -204,10 +177,7 @@ class hyb(object):
             else:
                 sign = [int(random()<0.5)]  
         elif len(incorr) ==0 and (len(incorrb)==0 or len(overlapped) ==self.N) or sum(overlapped) > sum(covered):
-            if print_message:
-                print(' ===== 1 ===== ')
             self.actions.append(1)
-            # print('1')
             move = ['cut']
             sign = [int(random()<0.5)]           
         # elif (len(incorr) == 0 and (sum(covered)>0)) or len(incorr)/sum(covered) >= len(incorrb)/sum(~covered):
@@ -234,17 +204,13 @@ class hyb(object):
             t = random()
             if t< 1./3: # try to decrease errors
                 self.actions.append(3)
-                if print_message:
-                    print(' ===== decrease error ===== ')
                 ex = sample(list(incorr) + list(incorrb),1)[0] 
                 if ex in incorr: # incorrectly classified by the interpretable model
                     rs_indicator = (pcovered[ex]).astype(int) # covered by prules
                     if random()<0.5:
-                        # print('7')
                         move = ['cut']
                         sign = [rs_indicator]
                     else:
-                        # print('8')
                         move = ['cut','add']
                         sign = [rs_indicator,rs_indicator]
                 # elif overlapped[ex]: 
@@ -257,19 +223,14 @@ class hyb(object):
                 #         move = ['cut','add']
                 #         sign = [1 - self.Y[ex],1 - self.Y[ex]]
                 else: # incorrectly classified by the black box model
-                    # print('9')
                     move = ['add']
                     sign = [int(self.Y[ex]==1)]
             elif t<2./3: # decrease coverage
                 self.actions.append(4)
-                if print_message:
-                    print(' ===== decrease size ===== ')
                 move = ['cut']
                 sign = [round(random())]
             else: # increase coverage
                 self.actions.append(5)
-                if print_message:
-                    print(' ===== increase coverage ===== ')
                 move = ['expand']
                 sign = [round(random())]
                 # if random()<0.5:
@@ -300,7 +261,6 @@ class hyb(object):
             supp = self.nsupp
         Y = self.Y if rs_indicator else 1- self.Y
         if move=='cut' and len(rules)>0:
-            # print('======= cut =======')
             """ cut """
             if random()<0.25 and ex >=0:
                 candidate = list(set(np.where(RMatrix[ex,:]==1)[0]).intersection(rules))
@@ -312,7 +272,7 @@ class hyb(object):
                 all_sum = np.sum(RMatrix[:,rules],axis = 1)
                 for index,rule in enumerate(rules):
                     Yhat= ((all_sum - np.array(RMatrix[:,rule]))>0).astype(int)
-                    TP,FP,TN,FN  = getConfusion(Yhat,Y)
+                    TP,FP,TN,FN  =confusion_matrix(Yhat,Y).ravel()
                     p.append(TP.astype(float)/(TP+FP+1))
                     # p.append(log_betabin(TP,TP+FP,self.alpha_1,self.beta_1) + log_betabin(FN,FN+TN,self.alpha_2,self.beta_2))
                 p = [x - min(p) for x in p]
@@ -327,7 +287,6 @@ class hyb(object):
                     cut_rule = rules[index]
             rules.remove(cut_rule)
         elif move == 'add' and ex>=0: 
-            # print('======= add =======')
             """ add """
             score_max = -self.N *10000000
             if self.Y[ex]*rs_indicator + (1 - self.Y[ex])*(1 - rs_indicator)==1:
@@ -354,7 +313,7 @@ class hyb(object):
                     # =============== Use objective function as a criteria ===============
                     for ind in select:
                         z = np.logical_or(RMatrix[:,ind],Yhat)
-                        TP,FP,TN,FN = getConfusion(z,self.Y)
+                        TN,FP,FN,TP = confusion_matrix(z,self.Y).ravel()
                         score = FP+FN -self.beta * sum(RMatrix[~covered ,ind])
                         if score > score_max:
                             score_max = score
@@ -362,8 +321,6 @@ class hyb(object):
                 if add_rule not in rules:
                     rules.append(add_rule)
         else: # expand
-            # print(['======= expand =======', len(rules)])
-            # candidates = np.where(error < self.beta * supp-self.alpha*self.N)[0] # fix
             candidates = [x for x in range(RMatrix.shape[1])]
             if rs_indicator:
                 select = list(set(candidates).difference(rules))
@@ -392,38 +349,10 @@ class hyb(object):
                 rules.append(add_rule)
         return rules
 
-    def print_rules(self, rules_max):
-        for rule_index in rules_max:
-            print(self.rules[rule_index])
-
-    def predict_text(self,df,Y,Yb):
-        prules = [self.prules[i] for i in self.prs_min]
-        nrules = [self.nrules[i] for i in self.nrs_min]
-        if len(prules):
-            p = [[] for rule in prules]
-            for i,rule in enumerate(prules):
-                p[i] = np.array((np.sum(df[:,list(rule)],axis=1)==len(rule)).flatten().tolist()[0]).astype(int)
-            p = (np.sum(p,axis=0)>0).astype(int)
-        else:
-            p = np.zeros(len(Y))
-        if len(nrules):
-            n = [[] for rule in nrules]
-            for i,rule in enumerate(nrules):
-                n[i] = np.array((np.sum(df[:,list(rule)],axis=1)==len(rule)).flatten().tolist()[0]).astype(int)
-            n = (np.sum(n,axis=0)>0).astype(int)
-        else:
-            n = np.zeros(len(Y))
-        pind = list(np.where(p)[0])
-        nind = list(np.where(n)[0])
-        covered = [x for x in range(len(Y)) if x in pind or x in nind]
-        Yhat = Yb
-        Yhat[nind] = 0
-        Yhat[pind] = 1
-        return Yhat,covered,Yb
 
     def predict(self, df, Y,Yb ):
-        prules = [self.prules[i] for i in self.prs_min]
-        nrules = [self.nrules[i] for i in self.nrs_min]
+        prules = [self.prules[i] for i in self.positive_rule_set]
+        nrules = [self.nrules[i] for i in self.negative_rule_set]
         # if isinstance(self.df, scipy.sparse.csc.csc_matrix)==False:
         dfn = 1-df #df has negative associations
         dfn.columns = [name.strip() + 'neg' for name in df.columns]
@@ -448,10 +377,9 @@ class hyb(object):
         Yhat = np.array([i for i in Yb])
         Yhat[nind] = 0
         Yhat[pind] = 1
-        return Yhat,covered,Yb
+        return Yhat,covered
 
 def accumulate(iterable, func=operator.add):
-    'Return running totals'
     # accumulate([1,2,3,4,5]) --> 1 3 6 10 15
     # accumulate([1,2,3,4,5], operator.mul) --> 1 2 6 24 120
     it = iter(iterable)
@@ -468,16 +396,6 @@ def find_lt(a, x):
         return int(i-1)
     else:
         return 0
-
-
-def getConfusion(Yhat,Y):
-    if len(Yhat)!=len(Y):
-        raise NameError('Yhat has different length')
-    TP = np.dot(np.array(Y),np.array(Yhat))
-    FP = np.sum(Yhat) - TP
-    TN = len(Y) - np.sum(Y)-FP
-    FN = len(Yhat) - np.sum(Yhat) - TN
-    return TP,FP,TN,FN
 
 
 def extract_rules(tree, feature_names):
@@ -513,12 +431,3 @@ def extract_rules(tree, feature_names):
             rule.append(node)
         rules.append(rule)
     return rules
-
-def binary_code(df,collist,Nlevel):
-    for col in collist:
-        for q in range(1,Nlevel,1):
-            threshold = df[col].quantile(float(q)/Nlevel)
-            df[col+'_geq_'+str(int(q))+'q'] = (df[col] >= threshold).astype(float)
-    df.drop(collist,axis = 1, inplace = True)
-
-    
