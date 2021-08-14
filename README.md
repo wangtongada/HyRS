@@ -5,7 +5,7 @@ Tong Wang, "Gaining Free or Low-Cost Transparency with Interpretable Partial Sub
 
 Example:
 
-The input data Xrain needs to be binarized. The target variable Ytrain and Ybtrain needs to be a binary array of 0 or 1.
+The input data Xtrain needs to be binarized into a matrix of 0 and 1, i.e., the categorical features need to be one-hot-encoded and the numeric features need to be discretized. The target variable Ytrain and Ybtrain needs to be a binary array of 0 or 1.
 
 supp is the minimal support, which can be set to 5% or 10%. Nrules is the size of the rule space, which can be set to 5000 or 10000
 
