@@ -120,7 +120,7 @@ class hyb(object):
         for iter in range(Niteration):
             if iter >0.75 * Niteration:
                 prs_curr,nrs_curr,pcovered_curr,ncovered_curr,overlap_curr,covered_curr, Yhat_curr = prs_opt[:],nrs_opt[:],pcovered_opt[:],ncovered_opt[:],overlap_opt[:],covered_opt[:], Yhat_opt[:] 
-            prs_new,nrs_new , pcovered_new,ncovered_new,overlap_new,covered_new= self.propose_rs(prs_curr,nrs_curr,pcovered_curr,ncovered_curr,overlap_curr,covered_curr, Yhat_curr, obj_min,print_message)
+            prs_new,nrs_new , pcovered_new,ncovered_new,overlap_new,covered_new= self.propose_rs(prs_curr[:],nrs_curr[:],pcovered_curr[:],ncovered_curr[:],overlap_curr[:],covered_curr[:], Yhat_curr[:], obj_min,print_message)
             self.Yhat_curr = Yhat_curr
             Yhat_new,TP,FP,TN,FN = self.compute_obj(pcovered_new,covered_new)
             self.Yhat_new = Yhat_new
